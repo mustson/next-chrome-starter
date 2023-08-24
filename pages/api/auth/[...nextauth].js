@@ -1,14 +1,17 @@
-import NextAuth from 'next-auth'
-import TwitterProvider from 'next-auth/providers/twitter'
+import NextAuth from "next-auth";
+import TwitterProvider from "next-auth/providers/twitter";
+
+const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
 
 const authOptions = {
   providers: [
     TwitterProvider({
       clientId: "c3lPaXU1RVpRN2E1cldVNnZUX0w6MTpjaQ",
       clientSecret: "Qa877MLX3ulZWncJ3btAmFsdybgFze7-C2Tq9R2W6cGQsSlKxj",
-	  version: "2.0",
+      version: "2.0",
     }),
-  ],jwt: {
+  ],
+  jwt: {
     secret: "jubeikurosawacyber2077", // Replace with your actual secret key
   },
 
@@ -17,14 +20,27 @@ const authOptions = {
   },
 
   callbacks: {
-    
     async jwt({ token, user, account, profile, isNewUser }) {
-
-
-     
       console.log("JWT Token:", token);
-     
-    
+
+      //update user profile collection in db
+      if (token) {
+        const response = await fetch(`${baseUrl}/api/profiler`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userID: token.sub,
+            isExtensionUser: true, // Replace with actual value
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to update user profile");
+        }
+      }
+
       return token;
     },
     async session({ session, account, token, user }) {
@@ -35,17 +51,18 @@ const authOptions = {
       if (token) {
         session.token = {
           name: token.name,
-          sub: token.sub
+          sub: token.sub,
         };
         session.user = {
           id: token.sub,
           name: token.name,
-        }
+        };
       }
 
       if (account) {
         session.account = {
-          account: account};
+          account: account,
+        };
         console.log("Account:", account);
       }
 
@@ -54,7 +71,6 @@ const authOptions = {
     /* session: {
       jwt: true,
   }, */
-    
   },
   /* 
   callbacks: {
@@ -72,8 +88,6 @@ const authOptions = {
     return session;
     },
   },  */
-}
+};
 
-export default NextAuth(authOptions)
-
-
+export default NextAuth(authOptions);
