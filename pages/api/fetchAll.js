@@ -1,6 +1,4 @@
 import { connectToDatabase } from "../../lib/mongo/mongodb.js";
-import fs from "fs";
-import path from "path";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
@@ -21,7 +19,7 @@ export default async function handler(req, res) {
   };
 
   let cursor = null;
-  let allFollowers = [];
+  const allFollowers = []; // Aggregate all followers here
 
   try {
     do {
@@ -36,22 +34,21 @@ export default async function handler(req, res) {
       }
 
       const data = await response.json();
-      allFollowers = allFollowers.concat(data.followers);
+      const currentFollowers = data.followers;
+
+      allFollowers.push(...currentFollowers); // Add the current batch of followers to the aggregate
 
       cursor = data.next_cursor;
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Optional: Introduce a delay if needed to prevent hitting rate limits
+      await new Promise((resolve) => setTimeout(resolve, 100));
     } while (cursor);
 
-    // Write to a file
-    const filePath = path.join(process.cwd(), "followers_dump.json");
-    fs.writeFileSync(filePath, JSON.stringify(allFollowers, null, 4));
-
-    res
-      .status(200)
-      .send({
-        message: "All follower data fetched and logged to followers_dump.json.",
-      });
+    // By the time we reach here, we've fetched all pages of followers.
+    res.status(200).json({
+      message: "All follower data fetched successfully.",
+      followers: allFollowers, // This will send all followers in the response. If the list is very large, consider not sending this.
+    });
   } catch (error) {
     console.error("Error fetching followers:", error);
     res.status(500).json({ error: "Internal Server Error" });

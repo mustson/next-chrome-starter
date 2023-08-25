@@ -1,6 +1,5 @@
 import { connectToDatabase } from "../../lib/mongo/mongodb.js";
-import fs from "fs";
-import path from "path";
+import Job from "../../lib/mongo/models/Job";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
@@ -20,8 +19,12 @@ export default async function handler(req, res) {
     },
   };
 
+  // Step 2: Create a new Job entry
+  const job = new Job({ screenname, status: "started" });
+  await job.save();
+
   let cursor = null;
-  let allFollowers = [];
+  const allFollowers = [];
 
   try {
     do {
@@ -36,23 +39,28 @@ export default async function handler(req, res) {
       }
 
       const data = await response.json();
-      allFollowers = allFollowers.concat(data.followers);
+      const currentFollowers = data.followers;
+
+      allFollowers.push(...currentFollowers);
 
       cursor = data.next_cursor;
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 100));
     } while (cursor);
 
-    // Write to a file
-    const filePath = path.join(process.cwd(), "followers_dump.json");
-    fs.writeFileSync(filePath, JSON.stringify(allFollowers, null, 4));
+    // Step 4: Update the job entry
+    job.status = "completed";
+    job.followers = allFollowers;
+    job.timestamp = new Date();
+    await job.save();
 
-    res
-      .status(200)
-      .send({
-        message: "All follower data fetched and logged to followers_dump.json.",
-      });
+    // Step 5: Send the 200 response
+    res.status(200).json({
+      message: "All follower data fetched and job saved successfully.",
+      jobId: job._id,
+    });
   } catch (error) {
+    // Error handling: Update the job status to reflect that there was an error, if necessary.
     console.error("Error fetching followers:", error);
     res.status(500).json({ error: "Internal Server Error" });
   }
