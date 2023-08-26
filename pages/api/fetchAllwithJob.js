@@ -6,6 +6,14 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed, expected GET" });
   }
 
+  // Connect to the database or fail early
+  try {
+    await connectToDatabase();
+  } catch (error) {
+    console.error("Database connection error:", error.message);
+    return res.status(500).json({ error: "Failed to connect to the database" });
+  }
+
   const screenname = req.query.screenname;
   if (!screenname) {
     return res.status(400).json({ error: "screenname is required" });
