@@ -24,6 +24,7 @@ export default async function handler(req, res) {
     },
   };
 
+  // use jobs to get the last cursor, if no pending jobs, cursor will be null, else get cursor from job
   //let cursor = (await getLastProcessedCursorFor(screenname)) || null;
   let cursor = null;
 

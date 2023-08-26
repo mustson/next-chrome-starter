@@ -1,11 +1,12 @@
 import { connectToDatabase } from "../../lib/mongo/mongodb.js";
+import Job from "../../lib/mongo/models/Job";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed, expected GET" });
   }
 
-  const screenname = req.query.screenname; // Use query parameters for GET request
+  const screenname = req.query.screenname;
   if (!screenname) {
     return res.status(400).json({ error: "screenname is required" });
   }
@@ -18,14 +19,19 @@ export default async function handler(req, res) {
     },
   };
 
+  // Step 2: Create a new Job entry
+  const job = new Job({ screenname, status: "started" });
+  await job.save();
+  console.log("Job created", job);
+
   let cursor = null;
-  let allFollowers = [];
+  const allFollowers = [];
 
   try {
     do {
       let url = `https://twitter-api45.p.rapidapi.com/followers.php?screenname=${screenname}`;
       if (cursor) {
-        url += `&cursor=${cursor}`; // Add the cursor to the request if it exists
+        url += `&cursor=${cursor}`;
       }
 
       const response = await fetch(url, options);
@@ -34,17 +40,28 @@ export default async function handler(req, res) {
       }
 
       const data = await response.json();
-      allFollowers = allFollowers.concat(data.followers);
+      const currentFollowers = data.followers;
 
-      cursor = data.next_cursor; // Assume the response provides a 'next_cursor' field
+      allFollowers.push(...currentFollowers);
 
-      // Optional: Introduce a delay if needed to prevent hitting rate limits
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    } while (cursor); // Continue as long as there's a next cursor
+      cursor = data.next_cursor;
 
-    console.log(allFollowers);
-    res.status(200).send({ message: "All follower data fetched and logged." });
+      /*  await new Promise((resolve) => setTimeout(resolve, 100)); */
+    } while (cursor);
+
+    // Step 4: Update the job entry
+    job.status = "queued";
+    job.followers = allFollowers;
+    job.timestamp = new Date();
+    await job.save();
+
+    // Step 5: Send the 200 response
+    res.status(200).json({
+      message: "All follower data fetched and job saved successfully.",
+      jobId: job._id,
+    });
   } catch (error) {
+    // Error handling: Update the job status to reflect that there was an error, if necessary.
     console.error("Error fetching followers:", error);
     res.status(500).json({ error: "Internal Server Error" });
   }
